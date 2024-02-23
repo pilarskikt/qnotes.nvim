@@ -32,11 +32,25 @@ return {
   },
 }
 ```
+User can also create use own keymaps with `create_note_keymap` and `search_note_keymap`:
+```lua
+return {
+    'pilarskikt/qnotes.nvim',
+    dependencies={
+        {'nvim-telescope/telescope.nvim', branch='0.1.x'}
+    },
+  opts = {
+    create_note_keymap = "<leader>n",
+    search_note_keymap = "<leader>f",
+  },
+}
+
+```
 
 ## Usage
 At the moment there are only two keymaps:\
 `<leader>n` - for creating new note\
-`<leader>f` - for searching through notes\
+`<leader>f` - for searching through notes
 
 When creating new note you will be asked for filename of the notes and tags. If filename is not provided qnotes will create journalfile named `{CURRENT_DATE}-JOURNAL.MD`
 the file is going to be created in `journal` subdirectory of your notes directory.

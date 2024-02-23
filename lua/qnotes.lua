@@ -10,6 +10,7 @@ local defaults = {
 function M.setup(opts)
 	opts = opts or {}
 
+	-- Function to create a new note
 	local function createNote()
 		local notes_directory = vim.fn.expand(opts.notes_dir) or vim.fn.expand(defaults.notes_directory)
 
@@ -66,9 +67,12 @@ function M.setup(opts)
 		print("Note created and opened: " .. full_path)
 	end
 
-	-- Telescope integration for file selection
-	local live_grep_keymap = opts.live_grep_keymap or "<leader>f"
-	vim.keymap.set("n", live_grep_keymap, function()
+	-- Configure keymaps
+	local create_note_keymap = opts.create_note_keymap or "<leader>n"
+	vim.keymap.set("n", create_note_keymap, createNote)
+
+	local search_note_keymap = opts.search_note_keymap or "<leader>f"
+	vim.keymap.set("n", search_note_keymap, function()
 		local notes_directory = opts.notes_dir or defaults.notes_directory
 
 		require("telescope.builtin").live_grep({
@@ -76,8 +80,6 @@ function M.setup(opts)
 			cwd = notes_directory,
 		})
 	end)
-
-	vim.keymap.set("n", "<leader>n", createNote)
 end
 
 return M
