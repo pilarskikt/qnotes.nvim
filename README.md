@@ -1,4 +1,4 @@
-# qnotes.nvim
+# ![qNotes](logo.png)
 
 This plugin is my primitive way of doing notes as i use NeoVim as my daily code editor.
 
