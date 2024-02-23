@@ -1,4 +1,4 @@
-# ![qNotes](logo.png)
+# <p align="center"> ![qNotes](logo.png | width=100) </p>
 
 This plugin is my primitive way of doing notes as i use NeoVim as my daily code editor.
 
