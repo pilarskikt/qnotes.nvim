@@ -1,6 +1,7 @@
 # <p align="center"> <img src="logo.png" width="100" height="100"> </br> qNotes </p>
 
 This plugin is my primitive way of doing notes as i use NeoVim as my daily code editor.
+[![asciicast](https://asciinema.org/a/642563.svg)](https://asciinema.org/a/642563)
 
 ## Requirements
 * [Neovim > v0.7.0](https://github.com/neovim/neovim/releases/tag/v0.7.0)
@@ -44,7 +45,6 @@ return {
     search_note_keymap = "<leader>f",
   },
 }
-
 ```
 
 ## Usage
