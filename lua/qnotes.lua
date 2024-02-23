@@ -4,14 +4,13 @@ local defaults = {
 	notes_directory = os.getenv("HOME") .. "/notes",
 	file_extension = ".md",
 	journal_subdirectory = "journal",
+	tags_separator = ",",
 }
 
 function M.setup(opts)
 	opts = opts or {}
-	local create_keymap = opts.create_keymap or "<leader>n"
-	local search_keymap = opts.search_keymap or "<leader>f"
 
-	vim.keymap.set("n", create_keymap, function()
+	local function createNote()
 		local notes_directory = vim.fn.expand(opts.notes_dir) or vim.fn.expand(defaults.notes_directory)
 
 		-- Get the filename from the user or use Telescope for file selection
@@ -47,17 +46,29 @@ function M.setup(opts)
 
 		local full_path = notes_directory .. "/" .. filename
 
-		-- Check if the directory exists, create it if not
-		vim.fn.mkdir(notes_directory, "p")
+		-- Remove the .md extension from the title
+		local title = filename:gsub(defaults.file_extension .. "$", "")
 
-		-- Create the file and open it for editing
-		vim.fn.writefile({ "" }, full_path)
+		-- Ask the user for tags
+		local tags = vim.fn.input("Enter tags (comma-separated): ")
+
+		-- Create the file and open it for editing with front matter
+		local file, error_message = io.open(full_path, "w")
+		if not file then
+			print("Error creating file: " .. error_message)
+			return
+		end
+
+		file:write(string.format("---\ntitle: %s\ntags: %s\n---\n", title, tags))
+		file:close()
+
 		vim.cmd("edit " .. full_path)
-		print("Created and opened: " .. full_path)
-	end)
+		print("Note created and opened: " .. full_path)
+	end
 
 	-- Telescope integration for file selection
-	vim.keymap.set("n", search_keymap, function()
+	local live_grep_keymap = opts.live_grep_keymap or "<leader>f"
+	vim.keymap.set("n", live_grep_keymap, function()
 		local notes_directory = opts.notes_dir or defaults.notes_directory
 
 		require("telescope.builtin").live_grep({
@@ -65,6 +76,8 @@ function M.setup(opts)
 			cwd = notes_directory,
 		})
 	end)
+
+	vim.keymap.set("n", "<leader>n", createNote)
 end
 
 return M
