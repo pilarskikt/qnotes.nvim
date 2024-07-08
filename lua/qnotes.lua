@@ -68,10 +68,10 @@ function M.setup(opts)
 	end
 
 	-- Configure keymaps
-	local create_note_keymap = opts.create_note_keymap or "<leader>n"
+	local create_note_keymap = opts.create_note_keymap or "<leader>qn"
 	vim.keymap.set("n", create_note_keymap, createNote)
 
-	local search_note_keymap = opts.search_note_keymap or "<leader>f"
+	local search_note_keymap = opts.search_note_keymap or "<leader>qf"
 	vim.keymap.set("n", search_note_keymap, function()
 		local notes_directory = opts.notes_dir or defaults.notes_directory
 
