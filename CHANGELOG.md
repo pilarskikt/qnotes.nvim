@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.0.5
+### Added
+- creating note for specific line of code, can be triggered with `<leader>ql` by default or set with custom keymap under `create_line_note_keymap `.
+delete line specific note is also available by default with `<leader>qd` or with custom keymap by setting `delete_line_note_keymap`.
+- line specific notes are using json file to keep metadata information about file and line with linked note, metadata file is created in same directory as notes
+
 ## 0.0.3
 
 ### Added
