@@ -50,9 +50,9 @@ return {
 ## Usage
 At the moment there are four keymaps:\
 `<leader>qn` - for creating new note\
-`<leader>qf` - for searching through notes
-`<leader>ql` - create new note for specific line of code(it will trigger creating(if doesnt exist) metadata file that keeps information about lines that have linked notes)
-`<leader>qd` - delete note for current line
+`<leader>qf` - for searching through notes\
+`<leader>ql` - create new note for specific line of code(it will trigger creating(if doesnt exist) metadata file that keeps information about lines that have linked notes)\
+`<leader>qd` - delete note for current line\
 
 When creating new note you will be asked for filename of the notes and tags. If filename is not provided qnotes will create journalfile named `{CURRENT_DATE}-JOURNAL.MD`
 the file is going to be created in `journal` subdirectory of your notes directory.
