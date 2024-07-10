@@ -143,8 +143,7 @@ function M.setup(opts)
 		if vim.fn.filereadable(full_path) ~= 0 then
 			local user_choice = vim.fn.input("File already exists. Do you want to edit it? (y/n): ")
 			if user_choice:lower() == "y" then
-				vim.cmd("edit " .. full_path)
-				print("Opened existing file for editing: " .. full_path)
+				openInFloatingWindow(full_path)
 				return
 			else
 				print("Creation aborted. File already exists: " .. full_path)
@@ -152,7 +151,6 @@ function M.setup(opts)
 			end
 		end
 
-		-- Create the file and open it for editing
 		local file, error_message = io.open(full_path, "w")
 		if not file then
 			print("Error creating file: " .. error_message)
@@ -168,11 +166,42 @@ function M.setup(opts)
 		table.insert(notes_metadata[current_file], line_number)
 		saveNotesMetadata() -- Save after updating
 
-		vim.cmd("edit " .. full_path)
 		print("Note created and linked to " .. current_file .. " at line " .. line_number .. ": " .. full_path)
 
 		updateIndicators()
+
+        openInFloatingWindow(full_path)
 	end
+
+    function openInFloatingWindow(file_path)
+        local buf = vim.api.nvim_create_buf(false, true) -- create new emtpy buffer
+        vim.api.nvim_buf_set_lines(buf, 0, -1, false, {file_path}) -- set lines from file
+
+        local width = math.floor(vim.o.columns * 0.7)
+        local height = math.floor(vim.o.lines * 0.7)
+
+        -- Calculate window position
+        local col = math.floor((vim.o.columns - width) / 2)
+        local row = math.floor((vim.o.lines - height) / 2)
+
+        -- Set buffer options
+        vim.api.nvim_buf_set_option(buf, 'bufhidden', 'wipe')
+
+        -- Create floating window
+        local win = vim.api.nvim_open_win(buf, true, {
+            relative = 'editor',
+            width = width,
+            height = height,
+            col = col,
+            row = row,
+            style = 'minimal',
+            border = 'rounded',
+        })
+
+        -- Set the window's buffer to the file content
+        vim.api.nvim_win_set_buf(win, buf)
+        vim.cmd('edit ' .. file_path)
+    end
 
 	local function deleteLineNote()
 		local current_file = vim.fn.expand("%:p")
