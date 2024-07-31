@@ -1,281 +1,207 @@
 local M = {}
 
 local defaults = {
-	notes_directory = os.getenv("HOME") .. "/notes",
-	file_extension = ".md",
-	journal_subdirectory = "journal",
-	tags_separator = ",",
-	indicator_text = "N",
+    notes_directory = os.getenv("HOME") .. "/notes",
+    file_extension = ".md",
+    journal_subdirectory = "journal",
+    tags_separator = ",",
 }
 
 local notes_metadata = {}
-local diagnostic_ns = vim.api.nvim_create_namespace("qnotes") -- Create a namespace for diagnostics
+local ns_id = vim.api.nvim_create_namespace("qnotes")
 
-function M.setup(opts)
-	opts = opts or {}
-	local notes_directory = vim.fn.expand(opts.notes_dir) or vim.fn.expand(defaults.notes_directory)
-
-	local function saveNotesMetadata()
-		local data = vim.fn.json_encode(notes_metadata)
-		local file_path = notes_directory .. "/qnotes_metadata.json"
-		local file, err = io.open(file_path, "w")
-		if not file then
-			print("Failed to save notes metadata: " .. tostring(err))
-			return
-		end
-
-		file:write(data)
-		file:close()
-		print("Metadata saved to: " .. file_path) -- Confirm the path for debugging
-	end
-
-	local function loadNotesMetadata()
-		local file_path = notes_directory .. "/qnotes_metadata.json"
-		local file, err = io.open(file_path, "r")
-		if not file then
-			print("Failed to load notes metadata: " .. tostring(err))
-			notes_metadata = {} -- Initialize as empty if the file doesn't exist or can't be opened
-			return
-		end
-
-		local data = file:read("*a")
-		notes_metadata = vim.fn.json_decode(data)
-		file:close()
-		print("Metadata loaded from: " .. file_path) -- Confirm the path for debugging
-	end
-	loadNotesMetadata()
-
-	local function updateIndicators()
-		local current_file = vim.fn.expand("%:p")
-		local diagnostics = {}
-
-		if notes_metadata[current_file] then
-			for _, line in ipairs(notes_metadata[current_file]) do
-				table.insert(diagnostics, {
-					lnum = line - 1, -- Lua is 1-indexed, Neovim API expects 0-indexed
-					col = 0,
-					message = "Note exists for this line",
-					severity = vim.diagnostic.severity.INFO,
-					source = "qnotes",
-				})
-			end
-		end
-
-		-- Clear existing diagnostics for the buffer before setting new ones
-		vim.diagnostic.reset(diagnostic_ns, vim.fn.bufnr())
-
-		-- Now set the diagnostics with the updated list
-		vim.diagnostic.set(diagnostic_ns, vim.fn.bufnr(), diagnostics, {
-			virtual_text = false,
-			signs = true,
-			underline = false,
-			update_in_insert = false,
-		})
-
-		print("Updated indicators for", current_file)
-	end
-
-	local function createNote()
-		-- Get the filename from the user or use Telescope for file selection
-		local filename = vim.fn.input("Enter filename: ")
-		if not filename or filename == "" then
-			local date_str = os.date("%Y-%m-%d")
-			filename = date_str .. "-journal" .. defaults.file_extension
-
-			-- Files created with the date-based and "journal" filename will be placed in the "journal" subdirectory
-			notes_directory = notes_directory .. "/" .. defaults.journal_subdirectory
-			vim.fn.mkdir(notes_directory, "p")
-		else
-			-- Ensure the filename has the appropriate extension
-			if not filename:match(defaults.file_extension .. "$") then
-				filename = filename .. defaults.file_extension
-			end
-
-			local full_path = notes_directory .. "/" .. filename
-
-			-- Check if the file already exists
-			if vim.fn.filereadable(full_path) ~= 0 then
-				local user_choice = vim.fn.input("File already exists. Do you want to edit it? (y/n): ")
-				if user_choice:lower() == "y" then
-					vim.cmd("edit " .. full_path)
-					print("Opened existing file for editing: " .. full_path)
-					return
-				else
-					print("Creation aborted. File already exists: " .. full_path)
-					return
-				end
-			end
-		end
-
-		local full_path = notes_directory .. "/" .. filename
-
-		local title = filename:gsub(defaults.file_extension .. "$", "")
-
-		-- Ask the user for tags
-		local tags = vim.fn.input("Enter tags (comma-separated): ")
-
-		-- Create the file and open it for editing with front matter
-		local file, error_message = io.open(full_path, "w")
-		if not file then
-			print("Error creating file: " .. error_message)
-			return
-		end
-
-		file:write(string.format("---\ntitle: %s\ntags: %s\n---\n", title, tags))
-		file:close()
-
-		vim.cmd("edit " .. full_path)
-		print("Note created and opened: " .. full_path)
-	end
-
-	local function createLineNote()
-		local current_file = vim.fn.expand("%:p")
-		local line_number = vim.fn.line(".")
-		local notes_directory = vim.fn.expand(opts.notes_dir) or vim.fn.expand(defaults.notes_directory)
-
-		-- Generate filename based on the current file's name and line number
-		local base_filename = vim.fn.expand("%:t:r")
-		local filename = string.format("codenote_%s-l%d%s", base_filename, line_number, defaults.file_extension)
-
-		local full_path = notes_directory .. "/" .. filename
-
-		-- Check if the file already exists
-		if vim.fn.filereadable(full_path) ~= 0 then
-			local user_choice = vim.fn.input("File already exists. Do you want to edit it? (y/n): ")
-			if user_choice:lower() == "y" then
-				openInFloatingWindow(full_path)
-				return
-			else
-				print("Creation aborted. File already exists: " .. full_path)
-				return
-			end
-		end
-
-		local file, error_message = io.open(full_path, "w")
-		if not file then
-			print("Error creating file: " .. error_message)
-			return
-		end
-
-		file:close()
-
-		-- Store note metadata
-		if not notes_metadata[current_file] then
-			notes_metadata[current_file] = {}
-		end
-		table.insert(notes_metadata[current_file], line_number)
-		saveNotesMetadata() -- Save after updating
-
-		print("Note created and linked to " .. current_file .. " at line " .. line_number .. ": " .. full_path)
-
-		updateIndicators()
-
-        openInFloatingWindow(full_path)
-	end
-
-    function openInFloatingWindow(file_path)
-        local buf = vim.api.nvim_create_buf(false, true) -- create new emtpy buffer
-        vim.api.nvim_buf_set_lines(buf, 0, -1, false, {file_path}) -- set lines from file
-
-        local width = math.floor(vim.o.columns * 0.7)
-        local height = math.floor(vim.o.lines * 0.7)
-
-        -- Calculate window position
-        local col = math.floor((vim.o.columns - width) / 2)
-        local row = math.floor((vim.o.lines - height) / 2)
-
-        -- Set buffer options
-        vim.api.nvim_buf_set_option(buf, 'bufhidden', 'wipe')
-
-        -- Create floating window
-        local win = vim.api.nvim_open_win(buf, true, {
-            relative = 'editor',
-            width = width,
-            height = height,
-            col = col,
-            row = row,
-            style = 'minimal',
-            border = 'rounded',
-        })
-
-        -- Set the window's buffer to the file content
-        vim.api.nvim_win_set_buf(win, buf)
-        vim.cmd('edit ' .. file_path)
-    end
-
-	local function deleteLineNote()
-		local current_file = vim.fn.expand("%:p")
-		local line_number = vim.fn.line(".")
-		local base_filename = vim.fn.expand("%:t:r")
-		local filename = string.format("codenote_%s-l%d%s", base_filename, line_number, defaults.file_extension)
-		local full_path = notes_directory .. "/" .. filename
-
-		-- Check if the file exists
-		if vim.fn.filereadable(full_path) == 0 then
-			print("Note does not exist: " .. full_path)
-			return
-		end
-
-		local user_choice = vim.fn.input("Are you sure you want to delete this note? (y/n): ")
-		if user_choice:lower() ~= "y" then
-			print("Deletion aborted.")
-			return
-		end
-
-		-- Delete the file
-		local success, err = os.remove(full_path)
-		if success then
-			print("Note deleted successfully: " .. full_path)
-			-- Remove metadata
-			if notes_metadata[current_file] then
-				for i, line in ipairs(notes_metadata[current_file]) do
-					if line == line_number then
-						table.remove(notes_metadata[current_file], i)
-						break
-					end
-				end
-				if #notes_metadata[current_file] == 0 then
-					notes_metadata[current_file] = nil
-				end
-				saveNotesMetadata() -- Save after updating
-			end
-			-- Refresh the current buffer
-			vim.cmd("edit!")
-		else
-			print("Error deleting file: " .. err)
-		end
-	end
-
-	-- Configure keymaps
-	local create_note_keymap = opts.create_note_keymap or "<leader>qn"
-	vim.keymap.set("n", create_note_keymap, createNote)
-
-	local search_note_keymap = opts.search_note_keymap or "<leader>qf"
-	vim.keymap.set("n", search_note_keymap, function()
-		local notes_directory = opts.notes_dir or defaults.notes_directory
-
-		require("telescope.builtin").live_grep({
-			prompt_title = "Live Grep",
-			cwd = notes_directory,
-		})
-	end)
-
-	local create_line_note_keymap = opts.create_line_note_keymap or "<leader>ql"
-	vim.keymap.set("n", create_line_note_keymap, createLineNote)
-
-	local delete_line_note_keymap = opts.delete_line_note_keymap or "<leader>qd"
-	vim.keymap.set("n", delete_line_note_keymap, deleteLineNote)
-
-	-- Autocmd to update indicators when entering a buffer
-	vim.api.nvim_create_autocmd("BufEnter", {
-		pattern = "*",
-		callback = function()
-			updateIndicators()
-		end,
-	})
+-- Utility function to get the full path of a note file
+local function getNoteFilePath(base_filename)
+    local codenotes_directory = notes_directory .. "/codenotes"
+    vim.fn.mkdir(codenotes_directory, "p") -- Ensure the codenotes directory exists
+    return codenotes_directory .. "/" .. "codenote_" .. base_filename .. defaults.file_extension
 end
 
--- Define the diagnostic sign
-vim.fn.sign_define("QNotesSign", { text = defaults.indicator_text })
+-- Utility function to save notes metadata
+local function saveNotesMetadata()
+    local data = vim.fn.json_encode(notes_metadata)
+    local file_path = notes_directory .. "/qnotes_metadata.json"
+    local file, err = io.open(file_path, "w")
+    if not file then
+        print("Failed to save notes metadata: " .. tostring(err))
+        return
+    end
+    file:write(data)
+    file:close()
+    print("Metadata saved to: " .. file_path)
+end
+
+-- Utility function to load notes metadata
+local function loadNotesMetadata()
+    local file_path = notes_directory .. "/qnotes_metadata.json"
+    local file, err = io.open(file_path, "r")
+    if not file then
+        print("Failed to load notes metadata: " .. tostring(err))
+        notes_metadata = {}
+        return
+    end
+    local data = file:read("*a")
+    notes_metadata = vim.fn.json_decode(data)
+    file:close()
+    print("Metadata loaded from: " .. file_path)
+end
+
+-- Function to update indicators for notes in the buffer
+local function updateIndicators()
+    vim.api.nvim_buf_clear_namespace(0, ns_id, 0, -1)
+    local current_file = vim.fn.expand("%:p")
+    if notes_metadata[current_file] then
+        for _, note in ipairs(notes_metadata[current_file]) do
+            local line_number = note.line
+            local note_content = note.content
+            vim.api.nvim_buf_set_extmark(0, ns_id, line_number - 1, 0, {
+                virt_text = {{note_content, "Comment"}},
+                virt_text_pos = "eol",
+            })
+        end
+    end
+    print("Updated indicators for", current_file)
+end
+
+-- Function to create a new note
+local function createNote()
+    local filename = vim.fn.input("Enter filename: ")
+    local full_path
+
+    if not filename or filename == "" then
+        local date_str = os.date("%Y-%m-%d")
+        filename = date_str .. "-journal" .. defaults.file_extension
+        full_path = notes_directory .. "/" .. defaults.journal_subdirectory .. "/" .. filename
+        vim.fn.mkdir(notes_directory .. "/" .. defaults.journal_subdirectory, "p")
+    else
+        if not filename:match(defaults.file_extension .. "$") then
+            filename = filename .. defaults.file_extension
+        end
+        full_path = notes_directory .. "/" .. filename
+    end
+
+    local title = filename:gsub(defaults.file_extension .. "$", "")
+    local tags = vim.fn.input("Enter tags (comma-separated): ")
+    local file, error_message = io.open(full_path, "w")
+    if not file then
+        print("Error creating file: " .. error_message)
+        return
+    end
+    file:write(string.format("---\ntitle: %s\ntags: %s\n---\n", title, tags))
+    file:close()
+    vim.cmd("edit " .. full_path)
+    print("Note created and opened: " .. full_path)
+end
+
+-- Function to create a line note
+local function createLineNote()
+    local current_file = vim.fn.expand("%:p")
+    local line_number = vim.fn.line(".")
+    local base_filename = vim.fn.expand("%:t:r")
+    local note_file = getNoteFilePath(base_filename)
+
+    local file, error_message = io.open(note_file, "a+")
+    if not file then
+        print("Error opening note file: " .. error_message)
+        return
+    end
+
+    local note_content = vim.fn.input("Enter note content: ")
+    local note = {
+        line = line_number,
+        content = note_content,
+    }
+
+    -- Update notes metadata
+    local notes = notes_metadata[current_file] or {}
+    table.insert(notes, note)
+    notes_metadata[current_file] = notes
+    saveNotesMetadata()
+
+    -- Append note content to the note file
+    file:write(string.format("Line %d: %s\n", line_number, note_content))
+    file:close()
+
+    print("Note created and linked to " .. current_file .. " at line " .. line_number)
+    updateIndicators()
+end
+
+-- Function to delete a line note
+local function deleteLineNote()
+    local current_file = vim.fn.expand("%:p")
+    local line_number = vim.fn.line(".")
+    local base_filename = vim.fn.expand("%:t:r")
+    local note_file = getNoteFilePath(base_filename)
+
+    if vim.fn.filereadable(note_file) == 0 then
+        print("Note file does not exist: " .. note_file)
+        return
+    end
+
+    local file = io.open(note_file, "r")
+    local lines = file:read("*a")
+    file:close()
+
+    local updated_lines = {}
+    local notes = notes_metadata[current_file] or {}
+
+    for _, note in ipairs(notes) do
+        if note.line ~= line_number then
+            table.insert(updated_lines, string.format("Line %d: %s", note.line, note.content))
+        end
+    end
+
+    local new_file, error_message = io.open(note_file, "w")
+    if not new_file then
+        print("Error opening note file: " .. error_message)
+        return
+    end
+
+    new_file:write(table.concat(updated_lines, "\n"))
+    new_file:close()
+
+    -- Update metadata
+    notes_metadata[current_file] = vim.tbl_filter(function(n) return n.line ~= line_number end, notes)
+    saveNotesMetadata()
+
+    -- Check if the note file is now empty and delete it if so
+    local file_size = vim.fn.getfsize(note_file)
+    if file_size == 0 then
+        os.remove(note_file)
+        print("Note file was empty and has been deleted: " .. note_file)
+
+        if not next(notes_metadata[current_file]) then
+            notes_metadata[current_file] = nil
+            saveNotesMetadata()
+        end
+    else
+        print("Note deleted from " .. current_file .. " at line " .. line_number)
+    end
+
+    updateIndicators()
+end
+
+-- Setup key mappings and autocommands
+function M.setup(opts)
+    opts = opts or {}
+    notes_directory = vim.fn.expand(opts.notes_dir or defaults.notes_directory)
+
+    loadNotesMetadata()
+
+    vim.keymap.set("n", opts.create_note_keymap or "<leader>qn", createNote)
+    vim.keymap.set("n", opts.search_note_keymap or "<leader>qf", function()
+        require("telescope.builtin").live_grep({
+            prompt_title = "Live Grep",
+            cwd = notes_directory,
+        })
+    end)
+    vim.keymap.set("n", opts.create_line_note_keymap or "<leader>ql", createLineNote)
+    vim.keymap.set("n", opts.delete_line_note_keymap or "<leader>qd", deleteLineNote)
+
+    vim.api.nvim_create_autocmd("BufEnter", {
+        pattern = "*",
+        callback = updateIndicators,
+    })
+end
 
 return M
